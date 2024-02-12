@@ -19,7 +19,7 @@ const PRG: &str = "uniqr";
 
 const EMPTY: Test = Test {
     input: "tests/inputs/empty.txt",
-    out: "tests/excepted/empty.txt.out",
+    out: "tests/expected/empty.txt.out",
     out_count: "tests/expected/empty.txt.c.out",
 };
 
