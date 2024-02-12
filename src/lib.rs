@@ -30,10 +30,10 @@ pub fn run(args: Args) -> MyResult<()> {
     let mut file = open(&args.in_file)
         .map_err(|e| format!("{}: {}", args.in_file, e))?;
 
-    let mut out_file: Option<File> = None;
-    if let Some(name) = &args.out_file {
-        out_file = Some(File::create(name)?);
-    }
+    let mut out_file: Box<dyn Write> = match &args.out_file {
+        Some(name) => Box::new(File::create(name)?),
+        None => Box::new(io::stdout()),
+    };
 
     count_and_output_duplicate_lines(args, &mut file, &mut out_file)?;
 
@@ -43,7 +43,7 @@ pub fn run(args: Args) -> MyResult<()> {
 fn count_and_output_duplicate_lines(
     args: Args,
     file: &mut Box<dyn BufRead>,
-    mut out_file: &mut Option<File>,
+    mut out_file: &mut Box<dyn Write>,
 ) -> MyResult<()> {
     let mut line = String::new();
     let mut prev_line = String::new();
@@ -58,12 +58,7 @@ fn count_and_output_duplicate_lines(
         if line.trim_end() == prev_line.trim_end() {
             line_count += 1;
         } else {
-            output_line_to_destination(
-                args.count,
-                &mut out_file,
-                prev_line.clone(),
-                line_count,
-            );
+            output_line(args.count, &mut out_file, prev_line.clone(), line_count)?;
 
             line_count = 1;
             prev_line = line.clone();
@@ -73,12 +68,7 @@ fn count_and_output_duplicate_lines(
     }
 
     // INFO: 最終行を出力するために、ループの外で再度呼び出す
-    output_line_to_destination(
-        args.count,
-        &mut out_file,
-        prev_line.clone(),
-        line_count,
-    );
+    output_line(args.count, &mut out_file, prev_line.clone(), line_count)?;
 
     Ok(())
 }
@@ -90,44 +80,19 @@ fn open(filename: &str) -> MyResult<Box<dyn BufRead>> {
     }
 }
 
-fn write_line_with_optional_count(
+fn output_line(
     count: bool,
-    file: &mut File,
+    out_file: &mut Box<dyn Write>,
     line: String,
     line_count: usize,
-) {
+) -> MyResult<()> {
+    if line_count <= 0 { return Ok(()); }
+
     if count {
-        write!(file, "{:>4} {}", line_count, line).unwrap();
+        write!(out_file, "{:>4} {}", line_count, line)?;
     } else {
-        write!(file, "{}", line).unwrap();
-    }
-}
-
-fn print_line_with_optional_count(
-    count: bool,
-    line: String,
-    line_count: usize,
-) {
-    if count {
-        print!("{:>4} {}", line_count, line);
-    } else {
-        print!("{}", line);
-    }
-}
-
-fn output_line_to_destination(
-    count: bool,
-    out_file: &mut Option<File>,
-    line: String,
-    line_count: usize,
-) {
-    if line_count <= 0 {
-        return;
+        write!(out_file, "{}", line)?;
     }
 
-    if let Some(ref mut file) = out_file {
-        write_line_with_optional_count(count, file, line, line_count);
-    } else {
-        print_line_with_optional_count(count, line, line_count);
-    }
+    Ok(())
 }
